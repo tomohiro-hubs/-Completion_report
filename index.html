@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PVモジュール温度特性計算ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-solar-panel text-blue-600 text-xl"></i>
+                <h1 class="text-lg font-bold text-gray-900">PVモジュール温度特性計算 (機械的完工チェック)</h1>
+            </div>
+            <div class="text-sm text-gray-500 hidden sm:block">ver 1.0</div>
+        </div>
+    </header>
+
+    <main class="flex-grow container mx-auto px-4 py-6 max-w-7xl">
+        
+        <!-- Input Section (Orange Theme) -->
+        <section class="bg-white rounded-lg shadow-md overflow-hidden mb-6 border-t-4 border-orange-400">
+            <div class="bg-orange-50 px-6 py-3 border-b border-orange-100 flex justify-between items-center flex-wrap gap-2">
+                <h2 class="font-bold text-orange-800 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders"></i> 定格値・係数設定 (入力)
+                </h2>
+                
+                <!-- Mode Toggle -->
+                <div class="flex items-center bg-white rounded-full px-3 py-1 shadow-sm border border-orange-200">
+                    <span class="text-xs font-medium mr-2 text-gray-600">計算モード:</span>
+                    <label class="relative inline-flex items-center cursor-pointer group">
+                        <input type="checkbox" id="modeToggle" class="sr-only peer">
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        <span class="ml-2 text-sm font-medium text-gray-700 group-hover:text-blue-700 transition-colors" id="modeLabel">標準 (βで電圧補正)</span>
+                    </label>
+                    <div class="group relative ml-2">
+                        <i class="fa-regular fa-circle-question text-gray-400 cursor-help hover:text-gray-600"></i>
+                        <div class="hidden group-hover:block absolute right-0 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-50 -mt-1">
+                            <p class="mb-1"><strong>標準:</strong> 電圧補正にβ、出力補正にγを使用 (推奨)</p>
+                            <p><strong>互換:</strong> 電圧・出力ともにγを使用 (既存Excel再現用)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                
+                <!-- Module Info -->
+                <div class="col-span-1 md:col-span-2 lg:col-span-4">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">型式 (Model)</label>
+                    <input type="text" id="model_name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50" placeholder="例: CHSM78N(DG)/F-BH-635">
+                </div>
+
+                <!-- STC Ratings -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider border-b pb-1">STC 定格値 (25℃)</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Pmax (W) <span class="text-red-500">*</span></label>
+                            <input type="number" id="pmax_stc" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50 text-right" step="0.01">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Voc (V) <span class="text-red-500">*</span></label>
+                            <input type="number" id="voc_stc" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50 text-right" step="0.01">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Vmp (V) <span class="text-red-500">*</span></label>
+                            <input type="number" id="vmp_stc" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50 text-right" step="0.01">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Isc (A)</label>
+                            <input type="number" id="isc_stc" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50 text-right" step="0.01">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Imp (A)</label>
+                            <input type="number" id="imp_stc" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50 text-right" step="0.01">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coefficients -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider border-b pb-1">温度係数 (%/℃)</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2 grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">β (Voc/Vmp) <span class="text-red-500">*</span></label>
+                                <input type="number" id="beta" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50 text-right" step="0.001">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">γ (Pmax) <span class="text-red-500">*</span></label>
+                                <input type="number" id="gamma" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50 text-right" step="0.001">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">α (Isc)</label>
+                                <input type="number" id="alpha" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50 text-right" step="0.001">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Series Config -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider border-b pb-1">システム構成（直列数範囲）</h3>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">直列数範囲 (Start 〜 End) <span class="text-red-500">*</span></label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="n_series_start" class="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50 text-right" step="1" min="1" max="100" value="14">
+                            <span class="text-gray-500">〜</span>
+                            <input type="number" id="n_series_end" class="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50 text-right" step="1" min="1" max="100" value="19">
+                            <span class="text-sm text-gray-500">直列</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">システム最大電圧 (警告値)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="max_system_voltage" value="1500" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-gray-500 focus:border-gray-500 bg-gray-50 text-right" step="100">
+                            <span class="text-sm text-gray-500">V</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex flex-col justify-end gap-3 pb-1">
+                    <button id="btnCalculate" class="w-full bg-gray-900 hover:bg-black text-white font-bold py-3 px-4 rounded shadow hover:shadow-md transition-all flex justify-center items-center gap-2">
+                        <i class="fa-solid fa-calculator"></i> 計算実行
+                    </button>
+                    <button id="btnClear" class="w-full bg-white hover:bg-gray-100 text-gray-700 font-semibold py-2 px-4 border border-gray-300 rounded shadow-sm transition-all flex justify-center items-center gap-2">
+                        <i class="fa-solid fa-eraser"></i> 結果クリア
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Output Section (Blue Theme) -->
+        <section class="bg-white rounded-lg shadow-md overflow-hidden border-t-4 border-blue-500 min-h-[400px]">
+            <div class="bg-blue-50 px-6 py-3 border-b border-blue-100 flex justify-between items-center">
+                <h2 class="font-bold text-blue-800 flex items-center gap-2">
+                    <i class="fa-solid fa-table-list"></i> 計算結果 (出力)
+                </h2>
+                <div class="flex gap-2">
+                    <button id="btnExport" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1.5 rounded border border-green-200 transition-colors flex items-center gap-1">
+                        <i class="fa-solid fa-file-excel"></i> Excel出力
+                    </button>
+                    <button id="btnAddRow" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded border border-blue-200 transition-colors flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i> 行を追加
+                    </button>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto pb-4">
+                <table class="min-w-full divide-y divide-gray-200" id="resultTable">
+                    <thead class="bg-gray-50">
+                        <tr id="headerRowTop">
+                            <th scope="col" rowspan="2" class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-16 border-b border-gray-200">操作</th>
+                            <th scope="col" rowspan="2" class="px-4 py-3 text-right text-xs font-bold text-blue-700 uppercase tracking-wider bg-blue-50/50 w-24 border-r border-b border-gray-200 sticky left-0 z-10 shadow-sm">
+                                温度 T (℃)
+                            </th>
+                            <!-- Module Single -->
+                            <th scope="col" rowspan="2" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                                Voc (V)<br><span class="text-[10px] font-normal">開放電圧</span>
+                            </th>
+                            <th scope="col" rowspan="2" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                                Vmp (V)<br><span class="text-[10px] font-normal">動作電圧</span>
+                            </th>
+                            <th scope="col" rowspan="2" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-b border-gray-200">
+                                Pmax (W)<br><span class="text-[10px] font-normal">最大出力</span>
+                            </th>
+                            <!-- Dynamic Series Headers will be injected here -->
+                        </tr>
+                        <tr id="headerRowBottom">
+                            <!-- Dynamic Sub-Headers will be injected here -->
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="tableBody">
+                        <!-- Rows will be generated by JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Empty State / Loading -->
+            <div id="emptyState" class="hidden py-12 flex flex-col items-center justify-center text-gray-400">
+                <i class="fa-solid fa-chart-simple text-4xl mb-3 opacity-20"></i>
+                <p>データを入力して「計算実行」ボタンを押してください</p>
+            </div>
+        </section>
+
+        <div class="mt-4 text-xs text-gray-500 text-right">
+            ※起動電圧がシステム最大電圧を超える場合、赤字で警告表示されます。<br>
+            ※計算結果は小数点以下一定桁数で丸められます。
+        </div>
+
+    </main>
+
+    <!-- Templates for JS -->
+    <template id="rowTemplate">
+        <tr class="hover:bg-blue-50 transition-colors group">
+            <td class="px-4 py-2 whitespace-nowrap text-center border-b border-gray-100">
+                <button class="btn-delete-row text-gray-400 hover:text-red-500 transition-colors" title="行を削除">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </td>
+            <td class="px-4 py-2 whitespace-nowrap border-r border-b border-gray-200 bg-blue-50/30 sticky left-0 z-10">
+                <input type="number" class="input-temp w-full text-right bg-transparent border-b border-transparent focus:border-blue-500 focus:outline-none font-bold text-blue-800" value="25" step="0.1">
+            </td>
+            <td class="px-4 py-2 whitespace-nowrap text-right text-gray-700 cell-voc border-b border-gray-100">-</td>
+            <td class="px-4 py-2 whitespace-nowrap text-right text-gray-700 cell-vmp border-b border-gray-100">-</td>
+            <td class="px-4 py-2 whitespace-nowrap text-right text-gray-700 cell-pmax border-r border-b border-gray-200 font-medium">-</td>
+            <!-- Dynamic Series Cells will be appended here -->
+        </tr>
+    </template>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

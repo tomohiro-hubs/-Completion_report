@@ -1,0 +1,62 @@
+/* Custom Scrollbar for Table */
+.overflow-x-auto::-webkit-scrollbar {
+    height: 8px;
+}
+.overflow-x-auto::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+.overflow-x-auto::-webkit-scrollbar-thumb {
+    background: #cbd5e1; 
+    border-radius: 4px;
+}
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8; 
+}
+
+/* Input hiding spinners for cleaner look, but still number inputs */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* Focus ring customization */
+input:focus {
+    outline: none;
+}
+
+/* Toggle Switch Animation */
+input:checked ~ .dot {
+    transform: translateX(100%);
+    background-color: #48bb78;
+}
+
+/* Highlight transition for calculated values */
+.value-updated {
+    animation: highlight 1s ease-out;
+}
+
+@keyframes highlight {
+    0% { background-color: #bfdbfe; }
+    100% { background-color: transparent; }
+}
+
+/* Badges */
+.badge-warning {
+    background-color: #fee2e2;
+    color: #991b1b;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    margin-left: 6px;
+    border: 1px solid #fecaca;
+    display: inline-block;
+}
+
+.text-warning {
+    color: #dc2626 !important;
+    font-weight: 800 !important;
+}
