@@ -408,10 +408,17 @@ function exportToExcel() {
     const rows = document.querySelectorAll(`#${CONFIG.dom.table.body} tr`);
     rows.forEach(row => {
         const temp = parseFloat(row.querySelector('.input-temp').value);
-        const voc = parseFloat(row.querySelector('.cell-voc').textContent);
-        const vmp = parseFloat(row.querySelector('.cell-vmp').textContent);
-        const pmax = parseFloat(row.querySelector('.cell-pmax').textContent);
-        const ratio = parseFloat(row.querySelector('.cell-ratio').textContent);
+        
+        // Helper to parse formatted numbers (remove commas)
+        const parseVal = (sel) => {
+            const text = row.querySelector(sel).textContent.replace(/,/g, '').trim();
+            return text === '-' ? NaN : parseFloat(text);
+        };
+
+        const voc = parseVal('.cell-voc');
+        const vmp = parseVal('.cell-vmp');
+        const pmax = parseVal('.cell-pmax');
+        const ratio = parseVal('.cell-ratio');
         
         const rowData = [
             temp,
@@ -424,8 +431,9 @@ function exportToExcel() {
         // Dynamic Cells
         const seriesCells = row.querySelectorAll('.cell-series-val');
         seriesCells.forEach(cell => {
-            // Handle HTML inside cell (warning span)
-            const val = parseFloat(cell.textContent);
+            // Handle HTML inside cell (warning span) and commas
+            const text = cell.textContent.replace(/,/g, '').trim();
+            const val = parseFloat(text);
             rowData.push(isNaN(val) ? '-' : val);
         });
         
