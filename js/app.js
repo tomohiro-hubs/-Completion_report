@@ -37,6 +37,7 @@ const CONFIG = {
         buttons: {
             calculate: 'btnCalculate',
             clear: 'btnClear',
+            clearInputs: 'btnClearInputs',
             add: 'btnAddRow',
             export: 'btnExport'
         },
@@ -100,6 +101,7 @@ function setupEventListeners() {
     // Buttons
     document.getElementById(CONFIG.dom.buttons.calculate).addEventListener('click', calculateAll);
     document.getElementById(CONFIG.dom.buttons.clear).addEventListener('click', clearResults);
+    document.getElementById(CONFIG.dom.buttons.clearInputs).addEventListener('click', clearInputs);
     document.getElementById(CONFIG.dom.buttons.add).addEventListener('click', () => addRow(25));
     document.getElementById(CONFIG.dom.buttons.export).addEventListener('click', exportToExcel);
 
@@ -170,6 +172,7 @@ function clearResults() {
         row.querySelector('.cell-voc').textContent = '-';
         row.querySelector('.cell-vmp').textContent = '-';
         row.querySelector('.cell-pmax').textContent = '-';
+        row.querySelector('.cell-ratio').textContent = '-';
         
         // Clear dynamic series cells
         const dynCells = row.querySelectorAll('.cell-series-val');
@@ -181,6 +184,34 @@ function clearResults() {
 }
 
 /**
+ * Clear all input fields
+ */
+function clearInputs() {
+    if (!confirm('入力値をすべて消去しますか？')) return;
+
+    // Text inputs
+    document.getElementById(CONFIG.dom.inputs.modelName).value = '';
+    
+    // Number inputs
+    document.getElementById(CONFIG.dom.inputs.pmax).value = '';
+    document.getElementById(CONFIG.dom.inputs.voc).value = '';
+    document.getElementById(CONFIG.dom.inputs.vmp).value = '';
+    document.getElementById(CONFIG.dom.inputs.isc).value = '';
+    document.getElementById(CONFIG.dom.inputs.imp).value = '';
+    
+    // Coeffs
+    document.getElementById(CONFIG.dom.inputs.alpha).value = '';
+    document.getElementById(CONFIG.dom.inputs.beta).value = '';
+    document.getElementById(CONFIG.dom.inputs.gamma).value = '';
+    
+    // System Config
+    document.getElementById(CONFIG.dom.inputs.nStart).value = '';
+    document.getElementById(CONFIG.dom.inputs.nEnd).value = '';
+    // Max voltage usually stays at standard 1500 or 1000, but clearing it too as requested
+    document.getElementById(CONFIG.dom.inputs.maxSysVoltage).value = '';
+}
+
+/**
  * Rebuild Table Header based on Series Range
  */
 function rebuildHeader(startN, endN) {
@@ -188,7 +219,7 @@ function rebuildHeader(startN, endN) {
     const headerBottom = document.getElementById(CONFIG.dom.table.headerBottom);
     
     // Remove existing dynamic headers (anything after the fixed columns)
-    // Fixed columns count: 5 in Top (Op, Temp, Voc, Vmp, Pmax)
+    // Fixed columns count: 6 in Top (Op, Temp, Voc, Vmp, Pmax, Ratio)
     // But be careful not to remove fixed columns.
     // We marked dynamic headers with class 'dynamic-header'
     
@@ -272,11 +303,13 @@ function calculateAll() {
         const vocT = inputs.voc * (1 + voltageCoeff * deltaT);
         const vmpT = inputs.vmp * (1 + voltageCoeff * deltaT);
         const pmaxT = inputs.pmax * (1 + gammaDec * deltaT);
+        const ratioT = inputs.pmax ? (pmaxT / inputs.pmax) * 100 : 0;
 
         // Update Single Module Cells
         updateCell(row, '.cell-voc', vocT);
         updateCell(row, '.cell-vmp', vmpT);
         updateCell(row, '.cell-pmax', pmaxT);
+        updateCell(row, '.cell-ratio', ratioT, 2); // % is usually 2 decimals
         
         // Calculate and Append Series Values
         for (let n = inputs.nStart; n <= inputs.nEnd; n++) {
@@ -290,15 +323,19 @@ function calculateAll() {
             const tdVmp = document.createElement('td');
             tdVmp.className = 'px-2 py-2 text-right text-gray-900 text-xs border-b border-r border-gray-200 dynamic-cell cell-series-val bg-gray-50/30';
 
+            // Format with commas
+            const vocSysFmt = vocSys.toLocaleString('ja-JP', { maximumFractionDigits: 1 });
+            const vmpSysFmt = vmpSys.toLocaleString('ja-JP', { maximumFractionDigits: 1 });
+
             // Warning Check
             if (vocSys > inputs.maxSysVoltage) {
-                tdVoc.innerHTML = `<span class="font-bold text-red-600">${vocSys.toFixed(1)}</span>`;
+                tdVoc.innerHTML = `<span class="font-bold text-red-600">${vocSysFmt}</span>`;
                 tdVoc.title = `Over ${inputs.maxSysVoltage}V`;
             } else {
-                tdVoc.textContent = vocSys.toFixed(1);
+                tdVoc.textContent = vocSysFmt;
             }
             
-            tdVmp.textContent = vmpSys.toFixed(1);
+            tdVmp.textContent = vmpSysFmt;
             
             row.appendChild(tdVoc);
             row.appendChild(tdVmp);
@@ -311,7 +348,8 @@ function calculateAll() {
  */
 function updateCell(row, selector, value) {
     const cell = row.querySelector(selector);
-    const text = parseFloat(value.toFixed(2)); 
+    // Format with commas, max 2 decimals
+    const text = value.toLocaleString('ja-JP', { maximumFractionDigits: 2 }); 
     cell.textContent = text;
     cell.classList.remove('value-updated');
     void cell.offsetWidth;
@@ -359,7 +397,7 @@ function exportToExcel() {
     ];
 
     // Build Header Row
-    const headerRow = ['温度 (℃)', 'Voc (V)', 'Vmp (V)', 'Pmax (W)'];
+    const headerRow = ['温度 (℃)', 'Voc (V)', 'Vmp (V)', 'Pmax (W)', '比率 (%)'];
     state.currentSeriesRange.forEach(n => {
         headerRow.push(`${n}直列 Voc`);
         headerRow.push(`${n}直列 Vmp`);
@@ -373,12 +411,14 @@ function exportToExcel() {
         const voc = parseFloat(row.querySelector('.cell-voc').textContent);
         const vmp = parseFloat(row.querySelector('.cell-vmp').textContent);
         const pmax = parseFloat(row.querySelector('.cell-pmax').textContent);
+        const ratio = parseFloat(row.querySelector('.cell-ratio').textContent);
         
         const rowData = [
             temp,
             isNaN(voc) ? '-' : voc,
             isNaN(vmp) ? '-' : vmp,
-            isNaN(pmax) ? '-' : pmax
+            isNaN(pmax) ? '-' : pmax,
+            isNaN(ratio) ? '-' : ratio
         ];
         
         // Dynamic Cells
@@ -401,7 +441,8 @@ function exportToExcel() {
         {wch: 15}, // Temp
         {wch: 12}, // Voc
         {wch: 12}, // Vmp
-        {wch: 12}  // Pmax
+        {wch: 12}, // Pmax
+        {wch: 10}  // Ratio
     ];
     // Add dynamic col widths
     state.currentSeriesRange.forEach(() => {
