@@ -35,12 +35,22 @@ const CONFIG = {
             nStart: 'n_series_start',
             nEnd: 'n_series_end',
             maxSysVoltage: 'max_system_voltage',
+            maxSysCurrent: 'max_system_current',
             // Simple Check Tool
             checkVolt: 'check_voltage',
             checkTolPlus: 'check_tolerance_plus',
             checkTolMinus: 'check_tolerance_minus',
             resMin: 'res_min_voltage',
-            resMax: 'res_max_voltage'
+            resMax: 'res_max_voltage',
+            // Current Prediction Tool
+            calcCurrTemp: 'calc_current_temp',
+            calcCurrIrr: 'calc_current_irr',
+            resIscMppt: 'res_isc_mppt',
+            resImpMppt: 'res_imp_mppt',
+            resIscString: 'res_isc_string',
+            resImpString: 'res_imp_string',
+            resParaCountIsc: 'res_parallel_count_isc',
+            resParaCountImp: 'res_parallel_count_imp'
         },
         buttons: {
             calculate: 'btnCalculate',
@@ -81,6 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initial calculation
     calculateAll();
     calculateTolerance(); // Init simple check tool
+    calculateCurrentPrediction(); // Init current prediction tool
 });
 
 /**
@@ -214,10 +225,12 @@ function setupEventListeners() {
                 if (data) {
                     fillSpecs(data);
                     makerInput.value = data.maker; // Auto-fill maker
+                    calculateCurrentPrediction(); // Recalculate current prediction with new STC values
                 }
             } else {
                 makerInput.value = '';
                 clearSpecs();
+                calculateCurrentPrediction(); // Reset calculation
             }
         }
     });
@@ -242,6 +255,24 @@ function setupEventListeners() {
     const checkInputs = [CONFIG.dom.inputs.checkVolt, CONFIG.dom.inputs.checkTolPlus, CONFIG.dom.inputs.checkTolMinus];
     checkInputs.forEach(id => {
         document.getElementById(id).addEventListener('input', calculateTolerance);
+    });
+
+    // Current Prediction Tool (Realtime)
+    const currInputs = [CONFIG.dom.inputs.calcCurrTemp, CONFIG.dom.inputs.calcCurrIrr, 
+                        CONFIG.dom.inputs.isc, CONFIG.dom.inputs.imp, CONFIG.dom.inputs.alpha];
+    
+    // Add listeners to inputs
+    [CONFIG.dom.inputs.calcCurrTemp, CONFIG.dom.inputs.calcCurrIrr].forEach(id => {
+        document.getElementById(id).addEventListener('input', calculateCurrentPrediction);
+    });
+    // Also trigger when STC params change (using existing input IDs from config)
+    [CONFIG.dom.inputs.isc, CONFIG.dom.inputs.imp, CONFIG.dom.inputs.alpha, CONFIG.dom.inputs.maxSysCurrent].forEach(id => {
+        document.getElementById(id).addEventListener('input', calculateCurrentPrediction);
+    });
+
+    // Radio buttons for MPPT parallel
+    document.querySelectorAll('input[name="mppt_parallel"]').forEach(radio => {
+        radio.addEventListener('change', calculateCurrentPrediction);
     });
 }
 
@@ -342,12 +373,20 @@ function clearInputs() {
     document.getElementById(CONFIG.dom.inputs.nEnd).value = '';
     // Max voltage usually stays at standard 1500 or 1000, but clearing it too as requested
     document.getElementById(CONFIG.dom.inputs.maxSysVoltage).value = '';
+    document.getElementById(CONFIG.dom.inputs.maxSysCurrent).value = '';
 
     // Simple Check Tool - Reset to defaults or clear?
     document.getElementById(CONFIG.dom.inputs.checkVolt).value = '';
     document.getElementById(CONFIG.dom.inputs.checkTolPlus).value = '';
     document.getElementById(CONFIG.dom.inputs.checkTolMinus).value = '';
     calculateTolerance();
+    
+    // Reset Current Tool
+    // document.getElementById(CONFIG.dom.inputs.calcCurrTemp).value = '-20'; // Keep default?
+    // document.getElementById(CONFIG.dom.inputs.calcCurrIrr).value = '1000'; // Keep default?
+    // Reset Radio to 1
+    document.querySelector('input[name="mppt_parallel"][value="1"]').checked = true;
+    calculateCurrentPrediction();
 }
 
 /**
@@ -377,6 +416,78 @@ function calculateTolerance() {
 
     elMin.textContent = fmt(minVal);
     elMax.textContent = fmt(maxVal);
+}
+
+/**
+ * Current Prediction Calculation (MPPT Input)
+ */
+function calculateCurrentPrediction() {
+    // Get Inputs
+    const temp = parseFloat(document.getElementById(CONFIG.dom.inputs.calcCurrTemp).value);
+    const irr = parseFloat(document.getElementById(CONFIG.dom.inputs.calcCurrIrr).value);
+    const parallel = parseInt(document.querySelector('input[name="mppt_parallel"]:checked').value) || 1;
+    const maxCurrent = parseFloat(document.getElementById(CONFIG.dom.inputs.maxSysCurrent).value) || 30;
+
+    const iscStc = parseFloat(document.getElementById(CONFIG.dom.inputs.isc).value);
+    const impStc = parseFloat(document.getElementById(CONFIG.dom.inputs.imp).value);
+    const alpha = parseFloat(document.getElementById(CONFIG.dom.inputs.alpha).value); // %/C
+
+    // DOM Elements
+    const elIscMppt = document.getElementById(CONFIG.dom.inputs.resIscMppt);
+    const elImpMppt = document.getElementById(CONFIG.dom.inputs.resImpMppt);
+    const elIscString = document.getElementById(CONFIG.dom.inputs.resIscString);
+    const elImpString = document.getElementById(CONFIG.dom.inputs.resImpString);
+    const elCountIsc = document.getElementById(CONFIG.dom.inputs.resParaCountIsc);
+    const elCountImp = document.getElementById(CONFIG.dom.inputs.resParaCountImp);
+
+    // Update parallel counts display
+    elCountIsc.textContent = parallel;
+    elCountImp.textContent = parallel;
+
+    if (isNaN(temp) || isNaN(irr) || isNaN(iscStc) || isNaN(impStc) || isNaN(alpha)) {
+        elIscMppt.textContent = '-';
+        elImpMppt.textContent = '-';
+        elIscString.textContent = '-';
+        elImpString.textContent = '-';
+        return;
+    }
+
+    // Calculate: I_stc * [1 + alpha_dec * (T-25)] * (G/1000)
+    const deltaT = temp - 25;
+    const alphaDec = alpha / 100; // % to decimal
+    const irrFactor = irr / 1000;
+
+    const iscString = iscStc * (1 + alphaDec * deltaT) * irrFactor;
+    const impString = impStc * (1 + alphaDec * deltaT) * irrFactor; // Using alpha(Isc) for Imp as approximation
+
+    const iscMppt = iscString * parallel;
+    const impMppt = impString * parallel;
+
+    // Format
+    const fmt = (n) => n.toFixed(2);
+
+    // Update String Values
+    elIscString.textContent = fmt(iscString);
+    elImpString.textContent = fmt(impString);
+
+    // Update MPPT Values with Warning Check
+    updateCurrentCell(elIscMppt, iscMppt, maxCurrent);
+    updateCurrentCell(elImpMppt, impMppt, maxCurrent);
+}
+
+/**
+ * Helper to update current cell with warning
+ */
+function updateCurrentCell(element, value, limit) {
+    const formatted = value.toFixed(2);
+    
+    if (limit && value > limit) {
+        element.innerHTML = `<span class="text-red-600">${formatted}</span>`;
+        element.title = `Over ${limit}A`;
+    } else {
+        element.textContent = formatted;
+        element.title = '';
+    }
 }
 
 /**

@@ -137,8 +137,29 @@
                     <div>
                         <label class="block text-xs font-medium text-gray-700 mb-1">システム最大電圧 (警告値)</label>
                         <div class="flex items-center gap-2">
-                            <input type="number" id="max_system_voltage" value="1500" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-gray-500 focus:border-gray-500 bg-gray-50 text-right" step="100">
+                            <input type="number" id="max_system_voltage" value="1000" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-gray-500 focus:border-gray-500 bg-gray-50 text-right" step="100">
                             <span class="text-sm text-gray-500">V</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">システム最大電流 (警告値)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="max_system_current" value="30" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-gray-500 focus:border-gray-500 bg-gray-50 text-right" step="1">
+                            <span class="text-sm text-gray-500">A</span>
+                        </div>
+                    </div>
+                    <!-- MPPT Parallel Config -->
+                    <div class="col-span-1 md:col-span-2 lg:col-span-1 border-t pt-2 mt-1 md:border-t-0 md:pt-0 md:mt-0">
+                        <label class="block text-xs font-medium text-gray-700 mb-2">MPPT回路構成 (並列数)</label>
+                        <div class="flex items-center gap-4">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="mppt_parallel" value="1" class="w-4 h-4 text-orange-600 border-gray-300 focus:ring-orange-500" checked>
+                                <span class="text-sm text-gray-700">1並列</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="mppt_parallel" value="2" class="w-4 h-4 text-orange-600 border-gray-300 focus:ring-orange-500">
+                                <span class="text-sm text-gray-700">2並列</span>
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -171,7 +192,7 @@
         <section class="bg-white rounded-lg shadow-md overflow-hidden border-t-4 border-blue-500 min-h-[400px] mb-6">
             <div class="bg-blue-50 px-6 py-3 border-b border-blue-100 flex justify-between items-center">
                 <h2 class="font-bold text-blue-800 flex items-center gap-2">
-                    <i class="fa-solid fa-table-list"></i> 計算結果 (出力)
+                    <i class="fa-solid fa-table-list"></i> 特定条件の電圧予測
                 </h2>
                 <div class="flex gap-2">
                     <button id="btnExport" class="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1.5 rounded border border-green-200 transition-colors flex items-center gap-1">
@@ -221,6 +242,12 @@
                 <i class="fa-solid fa-chart-simple text-4xl mb-3 opacity-20"></i>
                 <p>データを入力して「計算実行」ボタンを押してください</p>
             </div>
+            
+            <div class="bg-gray-50 p-3 text-center border-t border-gray-100">
+                <p class="text-[10px] text-gray-400">
+                    計算式: V(T) = V_stc × [1 + β(T-25)], P(T) = P_stc × [1 + γ(T-25)]
+                </p>
+            </div>
         </section>
 
         <!-- Voltage Tolerance Check Section -->
@@ -266,6 +293,64 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Current Prediction Section -->
+        <section class="bg-white rounded-lg shadow-md overflow-hidden mb-6 border-t-4 border-teal-500">
+            <div class="bg-teal-50 px-6 py-2 border-b border-teal-100">
+                <h2 class="font-bold text-teal-800 text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-bolt"></i> 特定条件の電流予測 (MPPT入力)
+                </h2>
+            </div>
+            <div class="p-6">
+                <div class="max-w-4xl mx-auto flex flex-col md:flex-row gap-8 items-center justify-center">
+                    
+                    <!-- Inputs -->
+                    <div class="flex gap-4 items-end">
+                        <div class="w-28">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">温度 (℃)</label>
+                            <input type="number" id="calc_current_temp" value="-20" class="w-full px-3 py-2 border border-orange-200 rounded bg-orange-50 text-center text-base font-bold text-gray-800 focus:ring-2 focus:ring-teal-400 focus:outline-none shadow-sm">
+                        </div>
+                        <div class="w-28">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">日射強度 (W/m²)</label>
+                            <input type="number" id="calc_current_irr" value="1000" class="w-full px-3 py-2 border border-orange-200 rounded bg-orange-50 text-center text-base font-bold text-gray-800 focus:ring-2 focus:ring-teal-400 focus:outline-none shadow-sm">
+                        </div>
+                    </div>
+
+                    <div class="hidden md:block text-gray-300 text-2xl">
+                        <i class="fa-solid fa-arrow-right"></i>
+                    </div>
+                    
+                    <!-- Results -->
+                    <div class="flex gap-6">
+                        <!-- Isc Result -->
+                        <div class="bg-teal-50 border border-teal-100 rounded p-3 min-w-[140px]">
+                            <div class="text-[10px] text-gray-500 mb-1 text-center">短絡電流 Isc (MPPT)</div>
+                            <div class="text-center">
+                                <div id="res_isc_mppt" class="text-xl font-bold text-teal-800">-</div>
+                                <div class="text-[10px] text-gray-400 mt-1">
+                                    (<span id="res_isc_string">-</span> A × <span id="res_parallel_count_isc">1</span>並列)
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Imp Result -->
+                        <div class="bg-teal-50 border border-teal-100 rounded p-3 min-w-[140px]">
+                            <div class="text-[10px] text-gray-500 mb-1 text-center">動作電流 Imp (MPPT)</div>
+                            <div class="text-center">
+                                <div id="res_imp_mppt" class="text-xl font-bold text-teal-800">-</div>
+                                <div class="text-[10px] text-gray-400 mt-1">
+                                    (<span id="res_imp_string">-</span> A × <span id="res_parallel_count_imp">1</span>並列)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="text-center mt-4 text-[10px] text-gray-400">
+                    計算式: I_stc × [1 + α(T-25)] × (日射強度/1000) × 並列数
                 </div>
             </div>
         </section>
