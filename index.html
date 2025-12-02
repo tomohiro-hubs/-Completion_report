@@ -53,9 +53,20 @@
             <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 
                 <!-- Module Info -->
-                <div class="col-span-1 md:col-span-2 lg:col-span-4">
-                    <label class="block text-xs font-medium text-gray-700 mb-1">型式 (Model)</label>
-                    <input type="text" id="model_name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50" placeholder="例: CHSM78N(DG)/F-BH-635">
+                <div class="col-span-1 md:col-span-2 lg:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="order-2 md:order-1">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">型式 (Model)</label>
+                        <div class="flex flex-col gap-2">
+                            <select id="model_select" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-orange-50">
+                                <option value="">型式を選択してください</option>
+                            </select>
+                            <input type="text" id="model_name_custom" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-white hidden" placeholder="型式を入力してください">
+                        </div>
+                    </div>
+                    <div class="order-1 md:order-2">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">メーカー (Manufacturer)</label>
+                        <input type="text" id="maker_name" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 bg-gray-100" readonly placeholder="型式を選択すると自動表示されます">
+                    </div>
                 </div>
 
                 <!-- STC Ratings -->

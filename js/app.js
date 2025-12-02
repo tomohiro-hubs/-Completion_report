@@ -21,7 +21,9 @@ const CONFIG = {
     },
     dom: {
         inputs: {
-            modelName: 'model_name',
+            maker: 'maker_name',
+            modelSelect: 'model_select',
+            modelCustom: 'model_name_custom',
             pmax: 'pmax_stc',
             voc: 'voc_stc',
             vmp: 'vmp_stc',
@@ -62,13 +64,15 @@ const CONFIG = {
 // App State
 let state = {
     mode: 'standard', // 'standard' (beta for voltage) or 'compatibility' (gamma for voltage)
-    currentSeriesRange: []
+    currentSeriesRange: [],
+    moduleData: [] // Loaded from JSON
 };
 
 /**
  * Initialize Application
  */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadModuleData();
     initializeInputs();
     setupEventListeners();
     // Pre-populate table with default temperatures
@@ -79,10 +83,76 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
+ * Load Module Data from JSON
+ */
+async function loadModuleData() {
+    try {
+        const response = await fetch('js/data.json');
+        state.moduleData = await response.json();
+        populateModels();
+    } catch (error) {
+        console.error('Failed to load module data:', error);
+    }
+}
+
+/**
+ * Populate Model Select Box with Optgroups by Maker
+ */
+function populateModels() {
+    const modelSelect = document.getElementById(CONFIG.dom.inputs.modelSelect);
+    modelSelect.innerHTML = '<option value="">型式を選択してください</option>';
+    
+    // Group data by maker
+    const grouped = state.moduleData.reduce((acc, item) => {
+        if (!acc[item.maker]) acc[item.maker] = [];
+        acc[item.maker].push(item);
+        return acc;
+    }, {});
+
+    // Sort makers alphabetically
+    const makers = Object.keys(grouped).sort();
+
+    makers.forEach(maker => {
+        const group = document.createElement('optgroup');
+        group.label = maker;
+        
+        // Sort models within maker
+        grouped[maker].sort((a, b) => a.model.localeCompare(b.model));
+        
+        grouped[maker].forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.model;
+            option.textContent = item.model;
+            group.appendChild(option);
+        });
+        
+        modelSelect.appendChild(group);
+    });
+
+    // Add Custom Option at the very end
+    const customOption = document.createElement('option');
+    customOption.value = "custom";
+    customOption.textContent = "カスタム (手入力)";
+    modelSelect.appendChild(customOption);
+    
+    modelSelect.disabled = false;
+}
+
+/**
+ * Populate Maker Select Box
+ */
+// function populateMakers() { ... } // Removed
+
+/**
+ * Populate Model Select Box based on Maker
+ */
+// function updateModelSelect(maker) { ... } // Removed
+
+/**
  * Set up default values in input fields
  */
 function initializeInputs() {
-    document.getElementById(CONFIG.dom.inputs.modelName).value = CONFIG.defaults.model_name;
+    // document.getElementById(CONFIG.dom.inputs.modelName).value = CONFIG.defaults.model_name; // Replaced by select logic
     document.getElementById(CONFIG.dom.inputs.pmax).value = CONFIG.defaults.pmax_stc;
     document.getElementById(CONFIG.dom.inputs.voc).value = CONFIG.defaults.voc_stc;
     document.getElementById(CONFIG.dom.inputs.vmp).value = CONFIG.defaults.vmp_stc;
@@ -110,6 +180,46 @@ function setupEventListeners() {
     document.getElementById(CONFIG.dom.buttons.clearInputs).addEventListener('click', clearInputs);
     document.getElementById(CONFIG.dom.buttons.add).addEventListener('click', () => addRow(25));
     document.getElementById(CONFIG.dom.buttons.export).addEventListener('click', exportToExcel);
+
+    // Maker Change - Removed
+    /*
+    document.getElementById(CONFIG.dom.inputs.maker).addEventListener('change', (e) => {
+        updateModelSelect(e.target.value);
+        document.getElementById(CONFIG.dom.inputs.modelCustom).classList.add('hidden');
+    });
+    */
+
+    // Model Change
+    document.getElementById(CONFIG.dom.inputs.modelSelect).addEventListener('change', (e) => {
+        const model = e.target.value;
+        const customInput = document.getElementById(CONFIG.dom.inputs.modelCustom);
+        const makerInput = document.getElementById(CONFIG.dom.inputs.maker);
+        
+        if (model === 'custom') {
+            customInput.classList.remove('hidden');
+            makerInput.readOnly = false; // Allow manual edit
+            makerInput.value = ''; // Clear maker
+            makerInput.classList.remove('bg-gray-100');
+            makerInput.classList.add('bg-white');
+            clearSpecs(); // Clear for manual input
+        } else {
+            customInput.classList.add('hidden');
+            makerInput.readOnly = true;
+            makerInput.classList.add('bg-gray-100');
+            makerInput.classList.remove('bg-white');
+            
+            if (model) {
+                const data = state.moduleData.find(item => item.model === model);
+                if (data) {
+                    fillSpecs(data);
+                    makerInput.value = data.maker; // Auto-fill maker
+                }
+            } else {
+                makerInput.value = '';
+                clearSpecs();
+            }
+        }
+    });
 
     // Toggle
     const toggle = document.getElementById(CONFIG.dom.toggle.mode);
@@ -202,7 +312,17 @@ function clearInputs() {
     if (!confirm('入力値をすべて消去しますか？')) return;
 
     // Text inputs
-    document.getElementById(CONFIG.dom.inputs.modelName).value = '';
+    document.getElementById(CONFIG.dom.inputs.maker).value = '';
+    document.getElementById(CONFIG.dom.inputs.modelSelect).value = ''; // Reset Select
+    // document.getElementById(CONFIG.dom.inputs.modelSelect).disabled = true; // No longer disabled
+    document.getElementById(CONFIG.dom.inputs.modelCustom).value = '';
+    document.getElementById(CONFIG.dom.inputs.modelCustom).classList.add('hidden');
+    
+    // Reset Maker input state to default
+    const makerInput = document.getElementById(CONFIG.dom.inputs.maker);
+    makerInput.readOnly = true;
+    makerInput.classList.add('bg-gray-100');
+    makerInput.classList.remove('bg-white');
     
     // Number inputs
     document.getElementById(CONFIG.dom.inputs.pmax).value = '';
@@ -258,6 +378,35 @@ function calculateTolerance() {
 
     elMin.textContent = fmt(minVal);
     elMax.textContent = fmt(maxVal);
+}
+
+/**
+ * Fill spec inputs with data
+ */
+function fillSpecs(data) {
+    document.getElementById(CONFIG.dom.inputs.pmax).value = data.pmax;
+    document.getElementById(CONFIG.dom.inputs.voc).value = data.voc;
+    document.getElementById(CONFIG.dom.inputs.vmp).value = data.vmp;
+    document.getElementById(CONFIG.dom.inputs.isc).value = data.isc;
+    document.getElementById(CONFIG.dom.inputs.imp).value = data.imp;
+    document.getElementById(CONFIG.dom.inputs.beta).value = data.beta; // Voc coeff
+    document.getElementById(CONFIG.dom.inputs.alpha).value = data.alpha; // Isc coeff
+    // Gamma from data
+    document.getElementById(CONFIG.dom.inputs.gamma).value = data.gamma || ''; 
+}
+
+/**
+ * Clear spec inputs
+ */
+function clearSpecs() {
+    document.getElementById(CONFIG.dom.inputs.pmax).value = '';
+    document.getElementById(CONFIG.dom.inputs.voc).value = '';
+    document.getElementById(CONFIG.dom.inputs.vmp).value = '';
+    document.getElementById(CONFIG.dom.inputs.isc).value = '';
+    document.getElementById(CONFIG.dom.inputs.imp).value = '';
+    document.getElementById(CONFIG.dom.inputs.beta).value = '';
+    document.getElementById(CONFIG.dom.inputs.alpha).value = '';
+    document.getElementById(CONFIG.dom.inputs.gamma).value = '';
 }
 
 /**
@@ -410,8 +559,18 @@ function updateCell(row, selector, value) {
  */
 function exportToExcel() {
     // 1. Gather Input Data
+    let modelName = document.getElementById(CONFIG.dom.inputs.modelSelect).value;
+    if (modelName === 'custom') {
+        modelName = document.getElementById(CONFIG.dom.inputs.modelCustom).value;
+    }
+    // Fallback if logic is bypassed
+    if (!modelName && document.getElementById(CONFIG.dom.inputs.modelCustom).value) {
+        modelName = document.getElementById(CONFIG.dom.inputs.modelCustom).value;
+    }
+
     const inputs = {
-        modelName: document.getElementById(CONFIG.dom.inputs.modelName).value,
+        maker: document.getElementById(CONFIG.dom.inputs.maker).value,
+        modelName: modelName,
         pmax: document.getElementById(CONFIG.dom.inputs.pmax).value,
         voc: document.getElementById(CONFIG.dom.inputs.voc).value,
         vmp: document.getElementById(CONFIG.dom.inputs.vmp).value,
@@ -431,6 +590,7 @@ function exportToExcel() {
         [''],
         ['【設定パラメータ】'],
         ['項目', '値', '単位'],
+        ['メーカー', inputs.maker, ''],
         ['型式', inputs.modelName, ''],
         ['Pmax (STC)', parseFloat(inputs.pmax), 'W'],
         ['Voc (STC)', parseFloat(inputs.voc), 'V'],
